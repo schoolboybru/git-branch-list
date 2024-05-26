@@ -1,9 +1,11 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -80,20 +82,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() string {
 	if m.choice != "" {
-		data, err := selectBranch(m.choice)
-
-		if err != nil {
-			quitTextStyle.Render(fmt.Sprintf("%s An error has occurred: ", err.Error()))
-		}
-
-		return quitTextStyle.Render(fmt.Sprintf("%s Switching to branch: %s", data, m.choice))
+		selectBranch(m.choice)
 	}
 
 	return m.List.View()
 }
 
-func selectBranch(branch string) ([]byte, error) {
-	return exec.Command("git", "checkout", branch).Output()
+func selectBranch(branch string) {
+	cmd := exec.Command("git", "checkout", branch)
+
+	var out bytes.Buffer
+
+	w := io.MultiWriter(os.Stdout, &out)
+
+	cmd.Stdout = w
+
+	cmd.Stderr = os.Stderr
+
+	cmd.Start()
 }
 
 func GetBranches() Model {
