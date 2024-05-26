@@ -15,7 +15,6 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 
 		p := tea.NewProgram(model.GetBranches())
-
 		p.Run()
 	},
 }
