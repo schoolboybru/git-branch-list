@@ -4,7 +4,7 @@ List and select a git branch easily.
 
 ## Getting Started
 ```
-go get github.com/schoolboybru/git-branch-list
+go install github.com/schoolboybru/git-branch-list
 ```
 
 ## MakeFile
