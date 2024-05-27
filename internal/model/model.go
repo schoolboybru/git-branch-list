@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -82,7 +83,7 @@ func (m Model) View() string {
 	if m.choice != "" {
 		b, err := selectBranch(m.choice)
 
-		if err != nil {
+		if err != "" {
 			return quitTextStyle.Render(fmt.Sprintf("%s", err))
 		}
 
@@ -92,14 +93,18 @@ func (m Model) View() string {
 	return m.List.View()
 }
 
-func selectBranch(branch string) (string, error) {
-	b, err := exec.Command("git", "checkout", branch).Output()
+func selectBranch(branch string) (string, string) {
+	cmd := exec.Command("git", "checkout", branch)
 
-	data := string(b)
+	var outBuf, errBuf bytes.Buffer
 
-	return data, err
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	cmd.Run()
+
+	return outBuf.String(), errBuf.String()
 }
-
 func GetBranches() Model {
 	out, err := exec.Command("git", "branch", "-l").Output()
 

@@ -1,8 +1,10 @@
 package main
 
 import (
-	"github.com/schoolboybru/git-branch-list/internal/model"
+	"fmt"
 	"os"
+
+	"github.com/schoolboybru/git-branch-list/internal/model"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -21,6 +23,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		fmt.Println("TEST")
 		os.Exit(1)
 	}
 }
