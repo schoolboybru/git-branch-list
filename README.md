@@ -1,31 +1,15 @@
-# git-branch-list
+# core
 
-List and select a git branch easily.
+To install dependencies:
 
-## Getting Started
-```
-go install github.com/schoolboybru/git-branch-list
+```bash
+bun install
 ```
 
-## MakeFile
+To run:
 
-run all make commands with clean tests
 ```bash
-make all build
+bun dev
 ```
-build the application
-```bash
-make build
-```
-run the application
-```bash
-make run
-```
-Create DB container
-```bash
-make docker-run
-```
-clean up binary from the last build
-```bash
-make clean
-```
+
+This project was created using `bun create tui`. [create-tui](https://git.new/create-tui) is the easiest way to get started with OpenTUI.
