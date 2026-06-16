@@ -4,46 +4,11 @@ import { useAppContext } from "@opentui/react";
 import type { Branch } from "./domain/branch";
 import { useEffect, useState } from "react";
 import type { KeyEvent } from "@opentui/core";
-
-type Mode =
-  | { readonly _tag: "Browsing" }
-  | { readonly _tag: "ConfirmDelete"; readonly branch: Branch };
-
-type Command =
-  | { readonly _tag: "Quit" }
-  | { readonly _tag: "RefreshBranches" }
-  | { readonly _tag: "PromptDelete"; readonly branch: Branch }
-  | { readonly _tag: "DeleteBranch"; readonly branch: Branch }
-  | { readonly _tag: "CancelDelete" }
-  | { readonly _tag: "RejectDeleteCurrent"; readonly branch: Branch }
-  | { readonly _tag: "Noop" };
-
-const Commands = {
-  quit: (): Command => ({ _tag: "Quit" }),
-  refreshBranches: (): Command => ({ _tag: "RefreshBranches" }),
-  promptDelete: (branch: Branch): Command => ({ _tag: "PromptDelete", branch }),
-  deleteBranch: (branch: Branch): Command => ({ _tag: "DeleteBranch", branch }),
-  cancelDelete: (): Command => ({ _tag: "CancelDelete" }),
-  rejectDeleteCurrent: (branch: Branch): Command => ({
-    _tag: "RejectDeleteCurrent",
-    branch,
-  }),
-  noop: (): Command => ({ _tag: "Noop" }),
-};
+import type { Mode } from "./domain/mode";
+import { type Command, Commands } from "./domain/command";
+import { useBranches } from "./hooks/useBranches";
 
 const runtime = ManagedRuntime.make(GitService.Default);
-
-const switchBranchAndReload = (branch: Branch) =>
-  Effect.gen(function* () {
-    yield* GitService.switchBranch(branch);
-    return yield* GitService.listBranches();
-  });
-
-const deleteBranchAndReload = (branch: Branch) =>
-  Effect.gen(function* () {
-    yield* GitService.deleteBranch(branch);
-    return yield* GitService.listBranches();
-  });
 
 const decide = (
   mode: Mode,
@@ -75,14 +40,19 @@ const decide = (
   );
 
 export function App() {
-  const [branches, setBranches] = useState<readonly Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>();
-  const [status, setStatus] = useState("Loading branches");
   const [mode, setMode] = useState<Mode>({ _tag: "Browsing" });
   const { keyHandler, renderer } = useAppContext();
 
-  const selectDefaultBranch = (branches: readonly Branch[]) =>
-    branches.find((branch) => !branch.current) ?? branches[0];
+  const {
+    branches,
+    selectedBranch,
+    status,
+    setStatus,
+    setSelectedBranch,
+    refreshBranches,
+    switchBranch,
+    deleteBranch,
+  } = useBranches(runtime);
 
   const runCommand = (command: Command) =>
     Match.value(command).pipe(
@@ -104,32 +74,12 @@ export function App() {
         }),
       ),
       Match.tag("RefreshBranches", () =>
-        Effect.gen(function* () {
-          yield* Effect.sync(() => {
-            setStatus("Refreshing...");
-          });
-          const branches = yield* GitService.listBranches();
-          yield* Effect.sync(() => {
-            setBranches(branches);
-            setSelectedBranch(selectDefaultBranch(branches));
-            setStatus("Refreshed");
-          });
-        }),
+        Effect.promise(() => refreshBranches()),
       ),
       Match.tag("DeleteBranch", ({ branch }) =>
-        Effect.gen(function* () {
-          yield* Effect.sync(() => {
-            setStatus(`Deleting ${branch.name}...`);
-          });
-
-          const branches = yield* deleteBranchAndReload(branch);
-
-          yield* Effect.sync(() => {
-            setBranches(branches);
-            setSelectedBranch(selectDefaultBranch(branches));
-            setMode({ _tag: "Browsing" });
-            setStatus(`Deleted ${branch.name}`);
-          });
+        Effect.promise(async () => {
+          await deleteBranch(branch);
+          setMode({ _tag: "Browsing" });
         }),
       ),
       Match.tag("RejectDeleteCurrent", ({ branch }) =>
@@ -140,21 +90,6 @@ export function App() {
       Match.tag("Noop", () => Effect.void),
       Match.exhaustive,
     );
-
-  useEffect(() => {
-    runtime.runPromiseExit(GitService.listBranches()).then((result) => {
-      Exit.match(result, {
-        onSuccess: (branches) => {
-          setBranches(branches);
-          setSelectedBranch(selectDefaultBranch(branches));
-          setStatus("Select a branch");
-        },
-        onFailure: () => {
-          setStatus("Failed to load branches");
-        },
-      });
-    });
-  }, []);
 
   useEffect(() => {
     if (!keyHandler) return;
@@ -199,25 +134,7 @@ export function App() {
           const branch = option?.value as Branch | undefined;
           if (!branch) return;
 
-          setStatus(`Switching to ${branch.name}...`);
-
-          const result = await runtime.runPromiseExit(
-            switchBranchAndReload(branch),
-          );
-
-          Exit.match(result, {
-            onSuccess: () => {
-              setBranches(branches);
-              setSelectedBranch(
-                branches.find((current) => current.name === branch.name) ??
-                  selectDefaultBranch(branches),
-              );
-              setStatus(`Switched to ${branch.name}`);
-            },
-            onFailure: () => {
-              setStatus(`Failed to switch to ${branch.name}`);
-            },
-          });
+          await switchBranch(branch);
         }}
         options={branches.map((branch) => ({
           name: branch.current ? `${branch.name} *` : branch.name,
