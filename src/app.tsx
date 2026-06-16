@@ -15,6 +15,7 @@ type Command =
   | { readonly _tag: "PromptDelete"; readonly branch: Branch }
   | { readonly _tag: "DeleteBranch"; readonly branch: Branch }
   | { readonly _tag: "CancelDelete" }
+  | { readonly _tag: "RejectDeleteCurrent"; readonly branch: Branch }
   | { readonly _tag: "Noop" };
 
 const Commands = {
@@ -23,10 +24,20 @@ const Commands = {
   promptDelete: (branch: Branch): Command => ({ _tag: "PromptDelete", branch }),
   deleteBranch: (branch: Branch): Command => ({ _tag: "DeleteBranch", branch }),
   cancelDelete: (): Command => ({ _tag: "CancelDelete" }),
+  rejectDeleteCurrent: (branch: Branch): Command => ({
+    _tag: "RejectDeleteCurrent",
+    branch,
+  }),
   noop: (): Command => ({ _tag: "Noop" }),
 };
 
 const runtime = ManagedRuntime.make(GitService.Default);
+
+const switchBranchAndReload = (branch: Branch) =>
+  Effect.gen(function* () {
+    yield* GitService.switchBranch(branch);
+    return yield* GitService.listBranches();
+  });
 
 const deleteBranchAndReload = (branch: Branch) =>
   Effect.gen(function* () {
@@ -43,7 +54,11 @@ const decide = (
     Match.when({ keyName: "q" }, Commands.quit),
     Match.when({ keyName: "r" }, Commands.refreshBranches),
     Match.when({ mode: { _tag: "Browsing" }, keyName: "d" }, () =>
-      selectedBranch ? Commands.promptDelete(selectedBranch) : Commands.noop(),
+      !selectedBranch
+        ? Commands.noop()
+        : selectedBranch.current
+          ? Commands.rejectDeleteCurrent(selectedBranch)
+          : Commands.promptDelete(selectedBranch),
     ),
     Match.when({ mode: { _tag: "ConfirmDelete" }, keyName: "y" }, ({ mode }) =>
       Commands.deleteBranch(mode.branch),
@@ -65,6 +80,9 @@ export function App() {
   const [status, setStatus] = useState("Loading branches");
   const [mode, setMode] = useState<Mode>({ _tag: "Browsing" });
   const { keyHandler, renderer } = useAppContext();
+
+  const selectDefaultBranch = (branches: readonly Branch[]) =>
+    branches.find((branch) => !branch.current) ?? branches[0];
 
   const runCommand = (command: Command) =>
     Match.value(command).pipe(
@@ -93,7 +111,7 @@ export function App() {
           const branches = yield* GitService.listBranches();
           yield* Effect.sync(() => {
             setBranches(branches);
-            setSelectedBranch(branches[0]);
+            setSelectedBranch(selectDefaultBranch(branches));
             setStatus("Refreshed");
           });
         }),
@@ -108,10 +126,15 @@ export function App() {
 
           yield* Effect.sync(() => {
             setBranches(branches);
-            setSelectedBranch(branches[0]);
+            setSelectedBranch(selectDefaultBranch(branches));
             setMode({ _tag: "Browsing" });
             setStatus(`Deleted ${branch.name}`);
           });
+        }),
+      ),
+      Match.tag("RejectDeleteCurrent", ({ branch }) =>
+        Effect.sync(() => {
+          setStatus(`Cannot delete current branch ${branch.name}`);
         }),
       ),
       Match.tag("Noop", () => Effect.void),
@@ -123,7 +146,7 @@ export function App() {
       Exit.match(result, {
         onSuccess: (branches) => {
           setBranches(branches);
-          setSelectedBranch(branches[0]);
+          setSelectedBranch(selectDefaultBranch(branches));
           setStatus("Select a branch");
         },
         onFailure: () => {
@@ -156,13 +179,19 @@ export function App() {
   }, [keyHandler, renderer, selectedBranch, mode]);
 
   return (
-    <box flexDirection="column" borderStyle="rounded" padding={1} gap={1}>
-      <text fg="#d7ba7d">Select a branch</text>
+    <box flexDirection="column" borderStyle="rounded" padding={1} gap={0}>
+      <text fg="#d7ba7d">Branches</text>
       <select
         focused
-        width={40}
-        height={10}
+        width={48}
+        height={Math.min(Math.max(1, branches.length), 12)}
         showDescription={false}
+        showScrollIndicator
+        wrapSelection
+        textColor="#c8c8c8"
+        focusedTextColor="#ffffff"
+        selectedBackgroundColor="transparent"
+        focusedBackgroundColor={"transparent"}
         onChange={(_index, option) => {
           setSelectedBranch(option?.value as Branch | undefined);
         }}
@@ -173,11 +202,16 @@ export function App() {
           setStatus(`Switching to ${branch.name}...`);
 
           const result = await runtime.runPromiseExit(
-            GitService.switchBranch(branch),
+            switchBranchAndReload(branch),
           );
 
           Exit.match(result, {
             onSuccess: () => {
+              setBranches(branches);
+              setSelectedBranch(
+                branches.find((current) => current.name === branch.name) ??
+                  selectDefaultBranch(branches),
+              );
               setStatus(`Switched to ${branch.name}`);
             },
             onFailure: () => {
@@ -186,15 +220,14 @@ export function App() {
           });
         }}
         options={branches.map((branch) => ({
-          name: branch.name,
+          name: branch.current ? `${branch.name} *` : branch.name,
           description: "",
           value: branch,
         }))}
       />
-      <text fg="#777777">
+      <text fg="#666666">
         ↑/↓ or j/k move enter switch d delete r refresh q quit
       </text>
-
       <text fg="#9cdcfe">{status}</text>
     </box>
   );

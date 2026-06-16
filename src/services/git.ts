@@ -27,7 +27,7 @@ export class GitService extends Effect.Service<GitService>()("GitService", {
 
     return {
       listBranches: () =>
-        runGit(["branch", "--format=%(refname:short)"]).pipe(
+        runGit(["branch", "--format=%(HEAD) %(refname:short)"]).pipe(
           Effect.map(parseBranches),
         ),
       switchBranch: (branch: Branch) =>
