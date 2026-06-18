@@ -1,10 +1,11 @@
-import { Effect, Exit, ManagedRuntime } from "effect";
+import { Effect, Exit } from "effect";
 import type { Branch } from "../domain/branch";
 import { GitService } from "../services/git";
 import { useEffect, useState } from "react";
+import type { Runtime } from "../domain/runtime";
+import { CommandResults } from "../domain/command";
 
-const selectDefaultBranch = (branches: readonly Branch[]) =>
-  branches.find((branch) => !branch.current) ?? branches[0];
+const selectDefaultBranch = (branches: readonly Branch[]) => branches[0];
 
 const switchBranchAndReload = (branch: Branch) =>
   Effect.gen(function* () {
@@ -18,12 +19,9 @@ const deleteBranchAndReload = (branch: Branch) =>
     return yield* GitService.listBranches();
   });
 
-type Runtime = ManagedRuntime.ManagedRuntime<GitService, never>;
-
 export function useBranches(runtime: Runtime) {
   const [branches, setBranches] = useState<readonly Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>();
-  const [status, setStatus] = useState("Loading branches");
 
   const replaceBranches = (
     branches: readonly Branch[],
@@ -41,58 +39,52 @@ export function useBranches(runtime: Runtime) {
   const loadBranches = async () => {
     const result = await runtime.runPromiseExit(GitService.listBranches());
 
-    Exit.match(result, {
+    return Exit.match(result, {
       onSuccess: (branches) => {
         replaceBranches(branches);
-        setStatus("Select a branch");
+        return CommandResults.loadBranchesSucceeded();
       },
       onFailure: () => {
-        setStatus("Failed to load branches");
+        return CommandResults.loadBranchesFailed();
       },
     });
   };
 
   const refreshBranches = async () => {
-    setStatus("Refreshing...");
-
     const result = await runtime.runPromiseExit(GitService.listBranches());
-    Exit.match(result, {
+    return Exit.match(result, {
       onSuccess: (branches) => {
         replaceBranches(branches);
-        setStatus("Refreshed");
+        return CommandResults.refreshSucceeded();
       },
       onFailure: () => {
-        setStatus("Failed to refresh branches");
+        return CommandResults.refreshFailed();
       },
     });
   };
 
   const switchBranch = async (branch: Branch) => {
-    setStatus(`Switching to ${branch.name}...`);
-
     const result = await runtime.runPromiseExit(switchBranchAndReload(branch));
-    Exit.match(result, {
+    return Exit.match(result, {
       onSuccess: (branches) => {
         replaceBranches(branches, branch.name);
-        setStatus(`Switched to ${branch.name}`);
+        return CommandResults.switchBranchSucceeded(branch);
       },
       onFailure: () => {
-        setStatus(`Failed to switch to ${branch.name}`);
+        return CommandResults.switchBranchFailed(branch);
       },
     });
   };
 
   const deleteBranch = async (branch: Branch) => {
-    setStatus(`Deleting ${branch.name}...`);
-
     const result = await runtime.runPromiseExit(deleteBranchAndReload(branch));
-    Exit.match(result, {
+    return Exit.match(result, {
       onSuccess: (branches) => {
         replaceBranches(branches, branch.name);
-        setStatus(`Deleted ${branch.name}`);
+        return CommandResults.deleteSucceeded(branch);
       },
       onFailure: () => {
-        setStatus(`Failed to delete ${branch.name}`);
+        return CommandResults.deleteFailed(branch);
       },
     });
   };
@@ -104,8 +96,6 @@ export function useBranches(runtime: Runtime) {
   return {
     branches,
     selectedBranch,
-    status,
-    setStatus,
     setSelectedBranch,
     loadBranches,
     refreshBranches,
