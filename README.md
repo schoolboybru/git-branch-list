@@ -1,31 +1,80 @@
 # git-branch-list
 
-List and select a git branch easily.
+An interactive terminal UI for browsing, switching, refreshing, and deleting Git branches.
 
-## Getting Started
-```
-go install github.com/schoolboybru/git-branch-list
+This branch is the OpenTUI rewrite of the app. It uses Bun, React, OpenTUI, and Effect to provide a keyboard-driven branch picker that runs directly in your terminal.
+
+## Requirements
+
+- [Bun](https://bun.sh/)
+- Git
+
+## Install dependencies
+
+```bash
+bun install
 ```
 
-## MakeFile
+## Run locally
 
-run all make commands with clean tests
+From inside a Git repository:
+
 ```bash
-make all build
+bun start
 ```
-build the application
+
+For development with watch mode:
+
 ```bash
-make build
+bun dev
 ```
-run the application
+
+## Install as a local CLI
+
+The package exposes a `git-branch-list` binary through `package.json`.
+
+For local development, link it globally with Bun:
+
 ```bash
-make run
+bun link
 ```
-Create DB container
+
+Then run it from any Git repository:
+
 ```bash
-make docker-run
+git-branch-list
 ```
-clean up binary from the last build
+
+You can also install the current checkout globally:
+
 ```bash
-make clean
+bun install -g .
 ```
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| `↑` / `↓` | Move selection |
+| `j` / `k` | Move selection |
+| `enter` | Switch to selected branch |
+| `d` | Prompt to delete selected branch |
+| `y` | Confirm branch deletion |
+| `n` / `esc` | Cancel branch deletion |
+| `r` | Refresh branch list |
+| `q` | Quit |
+
+The current branch is marked with `*`. Deleting the current branch is rejected by the app.
+
+## Check types
+
+```bash
+bun run check
+```
+
+## Tech stack
+
+- [Bun](https://bun.sh/) runtime
+- [OpenTUI](https://github.com/sst/opentui) terminal UI
+- React renderer for OpenTUI
+- [Effect](https://effect.website/) for Git command execution and error handling

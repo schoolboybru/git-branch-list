@@ -1,0 +1,29 @@
+{
+  "name": "git-branch-list",
+  "version": "0.1.0",
+  "module": "src/index.tsx",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "git-branch-list": "./bin/git-branch-list.tsx"
+  },
+  "scripts": {
+    "dev": "bun run --watch src/index.tsx",
+    "start": "bun run src/index.tsx",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.17"
+  },
+  "peerDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "^0.90.0",
+    "@opentui/core": "0.4.1",
+    "@opentui/react": "^0.4.1",
+    "effect": "^3.21.3",
+    "react": "^19.2.7"
+  }
+}
